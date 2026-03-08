@@ -1,78 +1,68 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Inches
+import re
 import io
 
-st.set_page_config(page_title="Endalia Doc Intelligence", layout="wide")
+st.set_page_config(page_title="Endalia Doc Explorer", layout="wide")
 
-# Función para extraer secciones del Word original
 @st.cache_data
-def extraer_secciones(file):
+def leer_todo_el_word(file):
     doc = Document(file)
     secciones = {}
-    current_section = None
-    content = []
-    
+    titulo_actual = "Inicio / Portada"
+    contenido_acumulado = []
+
+    # Expresión regular para detectar títulos numerados (ej: 7.2.2 o 4.1)
+    patron_titulo = re.compile(r'^(\d+\.[\d\.]*)\s*(.*)')
+
     for para in doc.paragraphs:
-        # Detectamos si es un título (basado en estilo o numeración)
-        if para.style.name.startswith('Heading') or (para.text and para.text[0].isdigit()):
-            if current_section:
-                secciones[current_section] = "\n".join(content)
-            current_section = para.text
-            content = []
+        texto = para.text.strip()
+        if not texto: continue
+
+        # Si el párrafo es un título por estilo O por numeración
+        es_titulo = para.style.name.startswith('Heading') or patron_titulo.match(texto)
+        
+        if es_titulo:
+            # Guardamos lo anterior antes de empezar sección nueva
+            secciones[titulo_actual] = "\n".join(contenido_acumulado)
+            titulo_actual = texto
+            contenido_acumulado = []
         else:
-            content.append(para.text)
+            contenido_acumulado.append(texto)
+            
+    # Guardar la última sección
+    secciones[titulo_actual] = "\n".join(contenido_acumulado)
     return secciones
 
-st.title("📂 Consultor y Editor de Documentación")
+st.title("📂 Explorador Completo de Documentación")
 
-# --- PASO 1: CARGAR EL DOCUMENTO MAESTRO ---
-st.sidebar.header("1. Documento Base")
-archivo_maestro = st.sidebar.file_uploader("Sube el Word actual (25Q4)", type=['docx'])
+archivo = st.sidebar.file_uploader("Carga el Word de Endalia", type=['docx'])
 
-if archivo_maestro:
-    dict_secciones = extraer_secciones(archivo_maestro)
-    lista_titulos = list(dict_secciones.keys())
+if archivo:
+    dict_docs = leer_todo_el_word(archivo)
     
-    # --- PASO 2: SELECCIÓN Y LECTURA ---
-    st.sidebar.header("2. Navegación")
-    opcion = st.sidebar.selectbox("Selecciona una funcionalidad para leer:", ["-- Seleccionar --"] + lista_titulos)
-    
-    col_lectura, col_edicion = st.columns(2)
-    
-    with col_lectura:
-        st.subheader("📖 Contenido Actual")
-        if opcion != "-- Seleccionar --":
-            texto_actual = dict_secciones[opcion]
-            st.info(f"Visualizando: {opcion}")
-            st.markdown(texto_actual if texto_actual.strip() else "_Esta sección solo contiene imágenes o tablas en el original._")
-        else:
-            st.write("Selecciona una sección en el menú lateral para leer su contenido actual.")
+    # Buscador de secciones para no perderte en el "kilométrico"
+    busqueda = st.sidebar.text_input("🔍 Buscar sección (ej: 7.2):")
+    titulos_filtrados = [t for t in dict_docs.keys() if busqueda.lower() in t.lower()]
 
-    # --- PASO 3: AÑADIR NUEVA FUNCIONALIDAD ---
-    with col_edicion:
-        st.subheader("✍️ Añadir / Modificar")
-        pbi_input = st.text_area("Pega los PBI para la nueva funcionalidad:", height=150)
-        capturas = st.file_uploader("Adjuntar capturas", type=['png', 'jpg'], accept_multiple_files=True)
+    seleccion = st.sidebar.selectbox("Selecciona la sección a consultar:", titulos_filtrados)
+
+    col1, col2 = st.columns([1, 1])
+
+    with col1:
+        st.subheader("📖 Contenido Original")
+        if seleccion:
+            st.markdown(f"### {seleccion}")
+            st.write(dict_docs[seleccion])
         
-        if st.button("🪄 Generar Propuesta"):
-            # Aquí la IA usaría el 'texto_actual' como contexto para no repetirse
-            # y redactar con el mismo estilo.
-            st.session_state.propuesta = f"""### {opcion} (Actualizado)
-{texto_actual[:200]}... 
-
-**Nueva Mejora:** Basado en los requisitos, se añade la capacidad de... [Redacción de la IA]
-"""
-            st.success("Propuesta generada combinando lo actual con lo nuevo.")
-
-    # --- PREVISUALIZACIÓN FINAL Y EXPORTAR ---
-    if "propuesta" in st.session_state:
-        st.divider()
-        st.subheader("👁️ Previsualización del nuevo fragmento")
-        texto_final = st.text_area("Edita el resultado final:", value=st.session_state.propuesta, height=250)
+    with col2:
+        st.subheader("✍️ Añadir Nueva Funcionalidad")
+        st.info("Escribe aquí lo nuevo. La IA usará el texto de la izquierda como referencia.")
+        pbi = st.text_area("PBI / Notas del desarrollo:")
         
-        if st.button("📥 Descargar Word Actualizado"):
-            # Lógica de descarga igual a la anterior...
-            pass
+        if st.button("Generar propuesta"):
+            # Aquí iría el prompt con el texto de la izquierda + tus notas
+            st.success("Propuesta generada respetando el estilo de la sección actual.")
+
 else:
-    st.warning("Por favor, sube el documento Word original en la barra lateral para empezar.")
+    st.info("Sube el archivo 'Endalia - Planificación y registro horario...' para activar el visor.")
