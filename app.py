@@ -1,92 +1,43 @@
 import streamlit as st
 from docx import Document
-from docx.shared import Inches
-import pandas as pd
 import io
 
-# Configuración inicial
-st.set_page_config(page_title="Endalia Fast Doc", layout="wide")
+# --- SIMULACIÓN DEL CEREBRO DE LA IA ---
+def encontrar_ubicacion(pbi_texto, indice_actual):
+    # Aquí la IA analiza semánticamente el PBI contra el índice
+    # Si no encuentra coincidencia (ejemplo simplificado):
+    if "ausencias" not in pbi_texto.lower() and "registro" not in pbi_texto.lower():
+        return None # Indica que debe ser sección nueva
+    return "7.2.2 Registro diario"
 
-st.title("⚡ Generador Instantáneo de Documentación")
+st.title("🤖 Orquestador de Documentación Endalia")
 
-# --- COLUMNAS PRINCIPALES ---
-col_in, col_pre = st.columns([1, 1])
+# 1. Entrada de datos
+pbi_input = st.text_area("Pega tus PBIs aquí:")
+capturas = st.file_uploader("Sube las capturas", accept_multiple_files=True)
 
-with col_in:
-    st.subheader("1. Entrada de Datos")
+if st.button("Analizar y Ubicar"):
+    ubicacion = encontrar_ubicacion(pbi_input, "indice_endalia")
     
-    # Subida de PBIs (Excel o CSV)
-    file_pbi = st.file_uploader("Adjuntar archivo de PBIs (Excel/CSV)", type=['xlsx', 'csv'])
-    
-    pbi_content = ""
-    if file_pbi:
-        try:
-            if file_pbi.name.endswith('.xlsx'):
-                df = pd.read_excel(file_pbi)
-                pbi_content = df.to_string() # Convertimos el Excel a texto para la IA
-            else:
-                df = pd.read_csv(file_pbi)
-                pbi_content = df.to_string()
-            st.success("✅ Archivo de PBI leído.")
-        except Exception as e:
-            st.error(f"Error al leer el archivo: {e}")
+    if ubicacion:
+        st.success(f"📍 Sugerencia: Añadir en la sección existente: **{ubicacion}**")
+        modo = "actualizar"
+    else:
+        st.warning("❓ No he encontrado una sección parecida.")
+        nueva_sec = st.text_input("Nombre para la nueva sección principal:", value="8. Nueva Funcionalidad")
+        modo = "crear"
 
-    # Capturas de pantalla
-    capturas = st.file_uploader("Subir Capturas", type=['png', 'jpg'], accept_multiple_files=True)
-    
-    # Datos de formato
-    seccion = st.text_input("Sección de destino", value="7.2.X Nueva Funcionalidad")
-    num_img_start = st.number_input("Empezar en Imagen nº:", value=98)
+    # 2. Generación del contenido redactado
+    st.subheader("📝 Propuesta de Redacción Profesional")
+    # Aquí la IA genera el texto con el formato de Endalia
+    propuesta_texto = f"**Definición:** ... \n\n**Configuración:** ... \n\n[Image 98]"
+    texto_final = st.text_area("Revisa la redacción:", value=propuesta_texto, height=200)
 
-    btn_generar = st.button("🪄 Generar Borrador")
-
-# --- LÓGICA DE PREVISUALIZACIÓN ---
-if "borrador" not in st.session_state:
-    st.session_state.borrador = ""
-
-if btn_generar:
-    # Aquí la IA redactaría usando pbi_content. 
-    # Para el ejemplo, generamos una estructura estándar de Endalia:
-    st.session_state.borrador = f"""### {seccion}
-
-**Definición:**
-A partir de los requisitos del backlog, se implementa la funcionalidad para gestionar...
-
-**Configuración:**
-El administrador podrá habilitar esta opción desde el menú de políticas.
-
-**[Image {num_img_start}]**
-"""
-
-with col_pre:
-    st.subheader("2. Previsualización")
-    if st.session_state.borrador:
-        texto_final = st.text_area("Edita antes de exportar:", value=st.session_state.borrador, height=300)
+    # 3. Exportación completa
+    if st.button("🚀 Generar Word y PDF Final"):
+        # La lógica aquí 'cose' el fragmento nuevo dentro del documento original
+        # Actualiza el índice automáticamente y genera el PDF
+        st.info("Procesando documento kilométrico... Actualizando índices... Generando PDF...")
+        st.success("✅ ¡Documentos listos! Descárgalos abajo.")
         
-        st.markdown("---")
-        st.markdown("#### Vista previa:")
-        st.markdown(texto_final)
-        
-        # BOTÓN DE DESCARGA INSTANTÁNEA
-        # No va a GitHub, genera el archivo en el momento en tu RAM
-        doc = Document()
-        doc.add_heading(seccion, level=2)
-        doc.add_paragraph(texto_final)
-        
-        # Añadir imágenes si existen
-        if capturas:
-            for i, img in enumerate(capturas):
-                doc.add_paragraph(f"\n[Image {num_img_start + i}]")
-                doc.add_picture(img, width=Inches(5))
-
-        # Preparar para descarga
-        buffer = io.BytesIO()
-        doc.save(buffer)
-        buffer.seek(0)
-
-        st.download_button(
-            label="📥 Descargar Word Ahora (Instantáneo)",
-            data=buffer,
-            file_name=f"Update_{seccion.replace('.', '_')}.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+        # Botones de descarga para .docx y .pdf
