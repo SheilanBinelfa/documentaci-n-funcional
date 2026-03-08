@@ -1,92 +1,92 @@
 import streamlit as st
 from docx import Document
+from docx.shared import Inches
 import pandas as pd
 import io
-import re
 
-st.set_page_config(page_title="Endalia Doc Tool v3", layout="wide")
+# Configuración inicial
+st.set_page_config(page_title="Endalia Fast Doc", layout="wide")
 
-# --- FUNCIONES DE SOPORTE ---
-@st.cache_data
-def procesar_word_maestro(file):
-    doc = Document(file)
-    secciones = {}
-    titulo_actual = "Inicio / Portada"
-    contenido = []
-    patron = re.compile(r'^(\d+\.[\d\.]*)\s*(.*)')
+st.title("⚡ Generador Instantáneo de Documentación")
 
-    for para in doc.paragraphs:
-        texto = para.text.strip()
-        if not texto: continue
-        if para.style.name.startswith('Heading') or patron.match(texto):
-            secciones[titulo_actual] = "\n".join(contenido)
-            titulo_actual = texto
-            contenido = []
-        else:
-            contenido.append(texto)
-    secciones[titulo_actual] = "\n".join(contenido)
-    return secciones
+# --- COLUMNAS PRINCIPALES ---
+col_in, col_pre = st.columns([1, 1])
 
-def leer_pbi_archivo(file):
-    if file.name.endswith('.csv'):
-        return pd.read_csv(file)
-    elif file.name.endswith('.xlsx'):
-        return pd.read_excel(file)
-    else:
-        return file.read().decode("utf-8")
-
-# --- INTERFAZ ---
-st.title("🚀 Sistema de Documentación Inteligente")
-
-# 1. Carga del Word Maestro (Solo una vez)
-archivo_word = st.sidebar.file_uploader("1. Sube el Word de Endalia (Base)", type=['docx'])
-
-if archivo_word:
-    dict_secciones = procesar_word_maestro(archivo_word)
+with col_in:
+    st.subheader("1. Entrada de Datos")
     
-    # 2. Navegación y Lectura
-    st.sidebar.divider()
-    busqueda = st.sidebar.text_input("🔍 Buscar en el índice:")
-    titulos = [t for t in dict_secciones.keys() if busqueda.lower() in t.lower()]
-    seleccion = st.sidebar.selectbox("Sección actual para referencia:", titulos)
+    # Subida de PBIs (Excel o CSV)
+    file_pbi = st.file_uploader("Adjuntar archivo de PBIs (Excel/CSV)", type=['xlsx', 'csv'])
+    
+    pbi_content = ""
+    if file_pbi:
+        try:
+            if file_pbi.name.endswith('.xlsx'):
+                df = pd.read_excel(file_pbi)
+                pbi_content = df.to_string() # Convertimos el Excel a texto para la IA
+            else:
+                df = pd.read_csv(file_pbi)
+                pbi_content = df.to_string()
+            st.success("✅ Archivo de PBI leído.")
+        except Exception as e:
+            st.error(f"Error al leer el archivo: {e}")
 
-    col_izq, col_der = st.columns([1, 1])
+    # Capturas de pantalla
+    capturas = st.file_uploader("Subir Capturas", type=['png', 'jpg'], accept_multiple_files=True)
+    
+    # Datos de formato
+    seccion = st.text_input("Sección de destino", value="7.2.X Nueva Funcionalidad")
+    num_img_start = st.number_input("Empezar en Imagen nº:", value=98)
 
-    with col_izq:
-        st.subheader("📖 Referencia Actual")
-        st.info(f"Viendo: {seleccion}")
-        st.markdown(dict_secciones[seleccion])
+    btn_generar = st.button("🪄 Generar Borrador")
 
-    with col_der:
-        st.subheader("🛠️ Nueva Funcionalidad")
+# --- LÓGICA DE PREVISUALIZACIÓN ---
+if "borrador" not in st.session_state:
+    st.session_state.borrador = ""
+
+if btn_generar:
+    # Aquí la IA redactaría usando pbi_content. 
+    # Para el ejemplo, generamos una estructura estándar de Endalia:
+    st.session_state.borrador = f"""### {seccion}
+
+**Definición:**
+A partir de los requisitos del backlog, se implementa la funcionalidad para gestionar...
+
+**Configuración:**
+El administrador podrá habilitar esta opción desde el menú de políticas.
+
+**[Image {num_img_start}]**
+"""
+
+with col_pre:
+    st.subheader("2. Previsualización")
+    if st.session_state.borrador:
+        texto_final = st.text_area("Edita antes de exportar:", value=st.session_state.borrador, height=300)
         
-        # OPCIÓN DE ADJUNTAR PBIs
-        tipo_entrada = st.radio("Método de entrada de PBI:", ["Subir Archivo (Excel/CSV/TXT)", "Copiar y Pegar"])
+        st.markdown("---")
+        st.markdown("#### Vista previa:")
+        st.markdown(texto_final)
         
-        datos_pbi = ""
-        if tipo_entrada == "Subir Archivo (Excel/CSV/TXT)":
-            file_pbi = st.file_uploader("Adjunta el backlog de la funcionalidad:", type=['xlsx', 'csv', 'txt'])
-            if file_pbi:
-                datos_pbi = leer_pbi_archivo(file_pbi)
-                st.success("Archivo de PBI cargado correctamente.")
-        else:
-            datos_pbi = st.text_area("Pega aquí los detalles del desarrollo:")
+        # BOTÓN DE DESCARGA INSTANTÁNEA
+        # No va a GitHub, genera el archivo en el momento en tu RAM
+        doc = Document()
+        doc.add_heading(seccion, level=2)
+        doc.add_paragraph(texto_final)
+        
+        # Añadir imágenes si existen
+        if capturas:
+            for i, img in enumerate(capturas):
+                doc.add_paragraph(f"\n[Image {num_img_start + i}]")
+                doc.add_picture(img, width=Inches(5))
 
-        capturas = st.file_uploader("Adjunta las capturas (Images)", type=['png', 'jpg'], accept_multiple_files=True)
-        
-        if st.button("🪄 Redactar Propuesta"):
-            # Aquí la IA tomaría 'dict_secciones[seleccion]' como base de estilo
-            # y 'datos_pbi' como el nuevo contenido.
-            st.session_state.propuesta_ia = f"### [BORRADOR] {seleccion}\n\n**Definición:** Basado en el archivo adjunto, se integra la nueva lógica de... \n\n**Configuración:** Se añade el nuevo check en la pantalla de administración..."
+        # Preparar para descarga
+        buffer = io.BytesIO()
+        doc.save(buffer)
+        buffer.seek(0)
 
-    # 3. Previsualización y Descarga
-    if "propuesta_ia" in st.session_state:
-        st.divider()
-        st.subheader("👁️ Previsualización del cambio")
-        texto_editable = st.text_area("Edita la redacción final:", value=st.session_state.propuesta_ia, height=250)
-        
-        if st.button("📥 Generar Word para Drive"):
-            # Lógica de creación de .docx igual a la anterior
-            st.write("Generando archivo...")
-else:
-    st.warning("Primero sube el Word 'Endalia - Planificación y registro horario' en el menú lateral.")
+        st.download_button(
+            label="📥 Descargar Word Ahora (Instantáneo)",
+            data=buffer,
+            file_name=f"Update_{seccion.replace('.', '_')}.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
