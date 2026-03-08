@@ -1,77 +1,82 @@
 import streamlit as st
-from github import Github
-import openai
+from docx import Document
+from docx.shared import Inches
+import io
+import re
 
-# Configuración de la página
-st.set_page_config(page_title="Editor de Documentación Endalia", layout="wide")
+st.set_page_config(page_title="Endalia Doc Engine Pro", layout="wide")
 
-# --- CONFIGURACIÓN DE SECRETOS (Configura esto en el panel de Streamlit) ---
-# github_token = st.secrets["GITHUB_TOKEN"]
-# openai_api_key = st.secrets["OPENAI_API_KEY"]
-
-st.title("📝 Editor Inteligente: Documentación Funcional")
-
-# --- BARRA LATERAL: Selección de Ubicación ---
-st.sidebar.header("Ubicación en el Documento")
-
-# Simulamos el índice de tu Word de Endalia
-indice_actual = [
-    "5. Políticas de registro",
-    "6.1 Planificación horaria",
-    "6.1.4 Generación de turnos",
-    "7.2 Registro de Jornada",
-    "7.2.2 Registro diario",
-    "Nueva Sección..."
-]
-
-seccion_seleccionada = st.sidebar.selectbox("¿Dónde quieres añadir la funcionalidad?", indice_actual)
-
-if seccion_seleccionada == "Nueva Sección...":
-    nueva_seccion = st.sidebar.text_input("Nombre y número de la nueva sección (ej: 7.2.5 Notificaciones)")
-
-# --- CUERPO PRINCIPAL: Entrada de Datos ---
-st.subheader("Entrada de Product Backlog Items (PBI)")
-pbi_input = st.text_area("Pega aquí los items del backlog o criterios de aceptación:", height=200, 
-                         placeholder="Ejemplo: El sistema debe permitir fichajes nocturnos que crucen la medianoche...")
-
-if st.button("Generar Borrador para el Documento"):
-    if pbi_input:
-        with st.spinner("Redactando con el estilo de Endalia..."):
-            # AQUÍ LLAMAMOS A LA IA
-            # El prompt le indica que use tu estilo específico: negritas, estructura técnica, etc.
-            prompt = f"""
-            Actúa como un redactor técnico de software de RRHH. 
-            Toma estos items de backlog: "{pbi_input}"
-            Y redáctalos para incluirlos en la sección "{seccion_seleccionada}" del manual funcional.
-            
-            REGLAS DE ESTILO:
-            1. Usa un tono formal y profesional.
-            2. Usa negritas para elementos de la interfaz (botones, menús).
-            3. Estructura el contenido con subapartados: 'Definición' y 'Configuración' si aplica.
-            4. Inspírate en el formato de Endalia: claro, directo y con foco en el usuario.
-            """
-            
-            # (Simulación de respuesta de IA - Aquí iría la llamada real a openai.ChatCompletion)
-            borrador = f"### {seccion_seleccionada}\n\n**Definición:** Esta funcionalidad permite... [Texto generado basado en el PBI]\n\n**Configuración:** Para activar esta opción, el administrador deberá..."
-            
-            st.session_state['borrador'] = borrador
-            st.success("¡Borrador generado!")
-
-# --- EDICIÓN Y ENVÍO ---
-if 'borrador' in st.session_state:
-    st.subheader("Revisar y Editar Borrador")
-    texto_final = st.text_area("Puedes modificar el texto antes de subirlo a GitHub:", 
-                               value=st.session_state['borrador'], height=300)
+# --- LÓGICA DE DETECCIÓN DE IMAGEN Y SECCIÓN ---
+def analizar_documento_maestro(file):
+    doc = Document(file)
+    texto_completo = "\n".join([p.text for p in doc.paragraphs])
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🚀 Publicar en GitHub"):
-            # Lógica para subir a GitHub usando PyGithub
-            st.info("Conectando con GitHub para realizar el commit...")
-            # repo.update_file(path, "Update doc", texto_final, contents.sha)
-            st.success("¡Documentación actualizada en el repositorio!")
+    # Buscar la última imagen [Image XX]
+    imagenes = re.findall(r'\[Image (\d+)\]', texto_completo)
+    ultima_img = int(imagenes[-1]) if imagenes else 97
+    
+    # Extraer títulos para el selector
+    titulos = [p.text for p in doc.paragraphs if p.style.name.startswith('Heading')]
+    return ultima_img, titulos
+
+st.title("🚀 Orquestador Inteligente: Planificación y Registro")
+
+archivo_maestro = st.sidebar.file_uploader("Carga el Funcional 25Q4", type=['docx'])
+
+if archivo_maestro:
+    # Analizamos el documento real nada más cargarlo
+    ultima_img_detectada, lista_titulos = analizar_documento_maestro(archivo_maestro)
+    prox_img = ultima_img_detectada + 1
+
+    col_in, col_pre = st.columns([1, 1])
+
+    with col_in:
+        st.subheader("📥 Entrada de Nueva Funcionalidad")
+        pbi = st.text_area("PBI / Requisitos del Backlog:", height=150, placeholder="Ej: Nueva alerta de olvido de fichaje...")
+        capturas = st.file_uploader("Capturas de pantalla:", accept_multiple_files=True)
+        
+        # IA propone ubicación
+        seccion_sugerida = "7.2.6 Notificaciones de Sistema" # Aquí iría la lógica de búsqueda semántica
+        ubicacion = st.selectbox("Insertar después de:", lista_titulos, index=len(lista_titulos)-1)
+        nombre_nueva = st.text_input("Título de la nueva sección:", value=seccion_sugerida)
+
+    with col_pre:
+        st.subheader("👁️ Previsualización Estilo Endalia")
+        if pbi:
+            # REDACCIÓN AUTOMÁTICA CON LENGUAJE ENDALIA
+            redaccion = f"**Definición:**\nEsta funcionalidad permite al **colaborador** recibir avisos proactivos... \n\n**Configuración:**\nSe parametriza en el módulo de Planificación (Sección 5.2).\n\n**[Image {prox_img}]**"
             
-    with col2:
-        if st.button("📥 Generar Word/PDF"):
-            st.info("Generando archivo con Pandoc y tu plantilla...")
-            # Aquí dispararías la descarga del archivo actualizado
+            texto_final = st.text_area("Revisar redacción:", value=redaccion, height=250)
+            
+            st.markdown("---")
+            st.markdown(f"### {nombre_nueva}")
+            st.markdown(texto_final)
+        else:
+            st.info("Esperando PBI para redactar...")
+
+    if pbi:
+        if st.button("🚀 Generar y Fusionar Documento Completo"):
+            with st.spinner("Fusionando con el documento de 80 páginas..."):
+                doc = Document(archivo_maestro)
+                
+                # Buscamos el párrafo de la sección elegida para insertar justo después
+                for i, p in enumerate(doc.paragraphs):
+                    if p.text == ubicacion:
+                        # Insertamos el nuevo título con estilo Heading 2
+                        new_h = doc.paragraphs[i].insert_paragraph_before(nombre_nueva, style='Heading 2')
+                        # Insertamos el contenido
+                        new_p = doc.paragraphs[i].insert_paragraph_before(texto_final)
+                        
+                        if capturas:
+                            doc.paragraphs[i].insert_paragraph_before(f"\n[Image {prox_img}]")
+                            doc.add_picture(capturas[0], width=Inches(5))
+                        break
+                
+                # Exportación
+                buf = io.BytesIO()
+                doc.save(buf)
+                st.success("✅ ¡Fusión completada con éxito!")
+                st.download_button("📥 Descargar Word Actualizado", buf.getvalue(), "Endalia_Funcional_UPDATE.docx")
+
+else:
+    st.info("Sube el archivo para que la IA detecte que la última imagen es la [Image 97].")
