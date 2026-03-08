@@ -1,43 +1,21 @@
-import streamlit as st
-from docx import Document
-import io
+import openai
 
-# --- SIMULACIÓN DEL CEREBRO DE LA IA ---
-def encontrar_ubicacion(pbi_texto, indice_actual):
-    # Aquí la IA analiza semánticamente el PBI contra el índice
-    # Si no encuentra coincidencia (ejemplo simplificado):
-    if "ausencias" not in pbi_texto.lower() and "registro" not in pbi_texto.lower():
-        return None # Indica que debe ser sección nueva
-    return "7.2.2 Registro diario"
-
-st.title("🤖 Orquestador de Documentación Endalia")
-
-# 1. Entrada de datos
-pbi_input = st.text_area("Pega tus PBIs aquí:")
-capturas = st.file_uploader("Sube las capturas", accept_multiple_files=True)
-
-if st.button("Analizar y Ubicar"):
-    ubicacion = encontrar_ubicacion(pbi_input, "indice_endalia")
+def agente_ubicador_y_redactor(pbi_texto, indice_documento):
+    prompt_sistema = """
+    Eres un Consultor Funcional Senior de Endalia. 
+    Tu objetivo es mantener la 'Documentación Funcional de Planificación y Registro Horario'.
     
-    if ubicacion:
-        st.success(f"📍 Sugerencia: Añadir en la sección existente: **{ubicacion}**")
-        modo = "actualizar"
-    else:
-        st.warning("❓ No he encontrado una sección parecida.")
-        nueva_sec = st.text_input("Nombre para la nueva sección principal:", value="8. Nueva Funcionalidad")
-        modo = "crear"
+    REGLAS DE UBICACIÓN:
+    1. Analiza el PBI y compáralo con el índice: {indice_documento}.
+    2. Si el PBI trata sobre algo ya existente (ej: Turnos, Fichajes, Validaciones), indica la sección exacta (ej: 6.1.4).
+    3. Si el PBI es un concepto nuevo sin relación clara, indica 'NUEVA_SECCION' y sugiere el número correlativo (ej: 8. Nombre de la Función).
+    
+    REGLAS DE REDACCIÓN:
+    1. Usa terminología Endalia: 'Colaborador', 'Responsable', 'Validación', 'Trámite', 'Compañía'.
+    2. Estructura: Siempre empieza con 'Definición' y sigue con 'Configuración'.
+    3. Imágenes: Inserta '[Image XX]' donde sea necesario un apoyo visual. El contador actual terminó en 97, así que empieza en 98.
+    """
 
-    # 2. Generación del contenido redactado
-    st.subheader("📝 Propuesta de Redacción Profesional")
-    # Aquí la IA genera el texto con el formato de Endalia
-    propuesta_texto = f"**Definición:** ... \n\n**Configuración:** ... \n\n[Image 98]"
-    texto_final = st.text_area("Revisa la redacción:", value=propuesta_texto, height=200)
-
-    # 3. Exportación completa
-    if st.button("🚀 Generar Word y PDF Final"):
-        # La lógica aquí 'cose' el fragmento nuevo dentro del documento original
-        # Actualiza el índice automáticamente y genera el PDF
-        st.info("Procesando documento kilométrico... Actualizando índices... Generando PDF...")
-        st.success("✅ ¡Documentos listos! Descárgalos abajo.")
-        
-        # Botones de descarga para .docx y .pdf
+    # Llamada a la IA (Simulación de la respuesta lógica)
+    # La IA devolvería un JSON con: {"seccion": "7.2.2", "accion": "insertar", "texto": "..."}
+    # O devolvería: {"seccion": "8.1", "accion": "crear_nueva", "texto": "..."}
